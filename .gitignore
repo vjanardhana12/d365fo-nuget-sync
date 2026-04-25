@@ -1,0 +1,13 @@
+# nuget packages - never commit
+*.nupkg
+
+# saved local config (no secrets but per-user)
+.push-config
+
+# nuget temp
+nuget.exe
+NuGet.Push.Config
+
+# Build artifacts (released via GitHub Releases, not in repo)
+*.exe
+test.png
