@@ -41,7 +41,7 @@ The "official" path (published in most D365 F&O team runbooks) is:
 3. Run `Invoke-D365InstallNuget` to stage `nuget.exe`.
 4. Create an ADO PAT with Packaging scope.
 5. Build a long `nuget sources add -Name ... -Source ... -username ... -password ...` command by hand.
-6. Run `Invoke-D365AzureDevOpsNugetPush -Path <nupkg> -Source <feed>` — **five separate times**, one per package.
+6. Run `Invoke-D365AzureDevOpsNugetPush -Path <nupkg> -Source <feed>` — **once per package in the core set**.
 7. Check ADO Artifacts to see if versions landed.
 
 Common failure: pushing a version that's already in the feed fails because Azure Artifacts won't overwrite immutable package versions. Old flow had no pre-check — you'd wait 2-3 minutes for a 400 MB upload just to see it rejected at the end.
@@ -50,7 +50,7 @@ Common failure: pushing a version that's already in the feed fails because Azure
 
 ## What it does
 
-1. **Reads your ADO feed** and lists which versions of the 5 D365 F&O packages it already has.
+1. **Reads your ADO feed** and lists which versions of the core D365 F&O package set (currently 5) it already has.
 2. **Reads any `.nupkg` files** you've placed next to the script.
 3. **Shows a clear table** — what's in the feed vs what's local, and what action is needed.
 4. **If anything's missing**, it opens the LCS Shared Asset Library in your browser, tells you which packages to download, then waits for you to drop them in the folder.
@@ -124,9 +124,9 @@ The first three are saved per-user to `%LOCALAPPDATA%\d365fo-nuget-sync\.push-co
 ### Empty feed, first-time setup
 ```
 .\Sync-D365FONuGet.ps1
-→ Feed empty. All 5 missing.
+→ Feed empty. Core package set missing (currently 5).
 → Opens LCS for you. Download the 5 packages, drop here, press Enter.
-→ Pushes all 5.
+→ Pushes the full core package set.
 ```
 
 ### Routine version refresh

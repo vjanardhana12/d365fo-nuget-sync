@@ -11,7 +11,7 @@
 .DESCRIPTION
     Workflow:
       1. Reads/prompts ADO feed config (URL, name, email; PAT every run).
-      2. Queries the ADO feed for current versions of the 5 D365 F&O packages.
+    2. Queries the ADO feed for current versions of the core D365 F&O package set (currently 5).
       3. Reads versions from any *.nupkg files placed next to this script.
       4. Shows a table: package | InFeed | Local | Action (SKIP / PUSH / MISSING).
       5. If anything is MISSING, opens LCS Shared Asset Library in your browser
@@ -69,7 +69,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # =============================================================================
-# Constants — the 5 D365 F&O NuGet packages we manage
+# Constants — core D365 F&O NuGet package IDs we manage (currently 5)
 # =============================================================================
 $script:KnownPackages = @(
     'Microsoft.Dynamics.AX.Platform.DevALM.BuildXpp',
@@ -469,7 +469,7 @@ if ($missing.Count -gt 0) {
             '2' {
                 Write-Info "Opening LCS: $script:LcsAssetLibraryUrl"
                 Start-Process $script:LcsAssetLibraryUrl
-                Write-Info 'Sign in with your LCS account, click on each package, and download all 5 .nupkg files.'
+                Write-Info ("Sign in with your LCS account, click on each package, and download all required .nupkg files (currently {0})." -f $script:KnownPackages.Count)
             }
             default { } # 1 or 3 or anything else - just go straight to the loop
         }
