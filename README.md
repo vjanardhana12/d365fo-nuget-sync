@@ -5,7 +5,7 @@
 
 **One-click sync of Microsoft Dynamics 365 Finance & Operations NuGet packages from LCS to your Azure DevOps Artifacts feed.**
 
-> **v1.0** — smart feed comparison: only pushes packages that are missing or newer. **No more wasted uploads** trying to push duplicate versions Azure Artifacts won't accept.
+> **v1.0.1** — smart feed comparison: only pushes packages that are missing or newer. **No more wasted uploads** trying to push duplicate versions Azure Artifacts won't accept. **Auto-update included** — checks GitHub on startup and prompts for upgrade if newer version is available.
 
 ---
 

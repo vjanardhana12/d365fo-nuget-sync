@@ -49,9 +49,10 @@
     Non-interactive config; will still prompt for PAT.
 
 .NOTES
-    Author  : Vinod Kumar K J
-    Version : 2.0
-    Works on: Windows PowerShell 5.1 and PowerShell 7+
+    Author       : Vinod Kumar K J
+    Version      : 1.0.1
+    Works on     : Windows PowerShell 5.1 and PowerShell 7+
+    Auto-update  : Checks GitHub on startup; prompts user if new version available
 #>
 
 [CmdletBinding()]
@@ -101,7 +102,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.0.0'
+$script:CurrentVersion = '1.0.1'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # Where we look for .nupkg files. Defaults to script folder. -PackageFolder overrides.
@@ -142,7 +143,7 @@ function Write-Banner {
 }
 
 function Test-ForUpdate {
-    # Silent self-update check. Never blocks. Returns nothing.
+    # Interactive self-update check. Prompts user if update available. Never blocks if offline.
     try {
         $api = "https://api.github.com/repos/$($script:UpdateRepo)/releases/latest"
         $resp = Invoke-RestMethod -Uri $api -TimeoutSec 4 -Headers @{ 'User-Agent' = 'd365fo-nuget-sync' } -ErrorAction Stop
@@ -152,11 +153,82 @@ function Test-ForUpdate {
         $currentVer = [version]$script:CurrentVersion
         if ($latestVer -gt $currentVer) {
             Write-Host ''
-            Write-Host "   [UPDATE] New version available: v$latest (you have v$($script:CurrentVersion))" -ForegroundColor Yellow
-            Write-Host "            Download: $($resp.html_url)" -ForegroundColor DarkGray
+            Write-Host "   ┌─────────────────────────────────────────────────────────────────┐" -ForegroundColor Yellow
+            Write-Host "   │ UPDATE AVAILABLE: v$latest (you have v$($script:CurrentVersion))" -ForegroundColor Yellow
+            Write-Host "   │ Release: $($resp.html_url)" -ForegroundColor DarkGray
+            Write-Host "   └─────────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
+            
+            if (-not $NonInteractive -and [Environment]::UserInteractive) {
+                $response = Read-Host -Prompt "   Download and update now? (Y/n)"
+                if ($response -ne 'n' -and $response -ne 'N') {
+                    Invoke-UpdateSelf -LatestVersion $latest -ReleaseUrl $resp.html_url
+                }
+            }
         }
     } catch {
         # Offline / rate-limited / repo not found - silently ignore
+    }
+}
+
+function Invoke-UpdateSelf {
+    # Download latest EXE from GitHub releases and replace current one
+    param([string]$LatestVersion, [string]$ReleaseUrl)
+    
+    try {
+        # Only works when running as compiled EXE (not as script)
+        if (-not $PSScriptRoot -and $MyInvocation.MyCommand.Path) {
+            $exePath = $MyInvocation.MyCommand.Path
+        } elseif (-not $PSScriptRoot) {
+            $exePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        } else {
+            # Running as .ps1 script, not EXE - skip update
+            Write-Warn2 'Running as script; auto-update only works with compiled EXE.'
+            return
+        }
+        
+        # Construct download URL for the EXE from GitHub releases
+        # Pattern: https://github.com/owner/repo/releases/download/vX.Y.Z/Sync-D365FONuGet.exe
+        $exeName = [System.IO.Path]::GetFileName($exePath)
+        $downloadUrl = "https://github.com/$($script:UpdateRepo)/releases/download/v$LatestVersion/$exeName"
+        
+        Write-Host ''
+        Write-Info "Downloading v$LatestVersion from GitHub..."
+        
+        # Download to temp file first
+        $tempExe = Join-Path $env:TEMP "Sync-D365FONuGet-$LatestVersion.exe"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempExe -UseBasicParsing -ErrorAction Stop
+        
+        if (-not (Test-Path $tempExe)) {
+            Write-Err 'Download failed'
+            return
+        }
+        
+        Write-OK "Downloaded: $tempExe"
+        
+        # Backup current EXE
+        $backupExe = "$exePath.backup"
+        if (Test-Path $exePath) {
+            Copy-Item -Path $exePath -Destination $backupExe -Force
+            Write-Info "Backed up current version to: $backupExe"
+        }
+        
+        # Replace with new EXE
+        Copy-Item -Path $tempExe -Destination $exePath -Force
+        Write-OK "Updated to v$LatestVersion"
+        
+        # Clean up temp file
+        try { Remove-Item $tempExe -Force } catch { }
+        
+        Write-Host ''
+        Write-Info 'Restarting with new version...'
+        Start-Sleep -Milliseconds 800
+        
+        # Re-invoke with the new EXE
+        & $exePath @PSBoundParameters
+        exit 0
+        
+    } catch {
+        Write-Err "Update failed: $($_.Exception.Message)"
     }
 }
 
