@@ -73,7 +73,7 @@ Common failure: pushing a version that's already in the feed fails because Azure
 
 **Easiest path — single EXE:**
 
-1. Download **`Sync-D365FONuGet.exe`** from the [latest release](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest) (54 KB, no install).
+1. Download **`Sync-D365FONuGet.exe`** from the [latest release](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest) (56 KB, no install).
 2. Drop it in any folder, **double-click it**.
 
 That's it. No PowerShell knowledge needed, no script execution policies to fight, no module installs.
