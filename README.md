@@ -73,8 +73,11 @@ Common failure: pushing a version that's already in the feed fails because Azure
 
 **Easiest path — single EXE:**
 
-1. Download **`Sync-D365FONuGet.exe`** — [direct download (56 KB)](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest/download/Sync-D365FONuGet.exe) · [release notes](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest)
-2. Drop it in any folder, **double-click it**.
+1. Download **`Sync-D365FONuGet.zip`** — [direct download (~26 KB)](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest/download/Sync-D365FONuGet.zip) · [release notes](https://github.com/vjanardhana12/d365fo-nuget-sync/releases/latest)
+2. **Right-click the zip → Properties → tick "Unblock" → OK**, then extract it.
+3. **Double-click `Sync-D365FONuGet.exe`** inside the extracted folder.
+
+> **First-run notice (Windows SmartScreen):** Windows may show *"Make sure you trust Sync-D365FONuGet.exe…"* on first launch — this happens to every unsigned indie tool. Click **More info → Run anyway**. Since this is open source, every line is auditable in this repo before you run it.
 
 That's it. No PowerShell knowledge needed, no script execution policies to fight, no module installs.
 
