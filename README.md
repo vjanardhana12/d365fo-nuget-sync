@@ -5,7 +5,7 @@
 
 **One-click sync of Microsoft Dynamics 365 Finance & Operations NuGet packages from LCS to your Azure DevOps Artifacts feed.**
 
-> **v1.0** — smart feed comparison: only pushes packages that are missing or newer. **No more 409 Conflict errors** from pushing duplicate versions.
+> **v1.0** — smart feed comparison: only pushes packages that are missing or newer. **No more wasted uploads** trying to push duplicate versions Azure Artifacts won't accept.
 
 > **📌 Note on LCS / PPAC**
 > As of April 2026, D365 F&O NuGet packages are still hosted on **LCS Shared Asset Library**.
@@ -25,7 +25,7 @@ The "official" path (published in most D365 F&O team runbooks) is:
 6. Run `Invoke-D365AzureDevOpsNugetPush -Path <nupkg> -Source <feed>` — **five separate times**, one per package.
 7. Check ADO Artifacts to see if versions landed.
 
-Common failure: pushing a version that's already in the feed returns **HTTP 409 Conflict** (ADO refuses to overwrite immutable package versions). Old flow had no pre-check — you'd wait 2-3 minutes for a 400 MB upload just to see a 409 at the end.
+Common failure: pushing a version that's already in the feed fails because Azure Artifacts won't overwrite immutable package versions. Old flow had no pre-check — you'd wait 2-3 minutes for a 400 MB upload just to see it rejected at the end.
 
 **This tool replaces steps 2-7 with one double-click**: reads the feed first, skips what's already there, pushes up to 3 in parallel, no module install needed.
 
