@@ -7,6 +7,25 @@
 
 > **v1.0** — smart feed comparison: only pushes packages that are missing or newer. **No more wasted uploads** trying to push duplicate versions Azure Artifacts won't accept.
 
+---
+
+## At a glance
+
+![Before / After comparison](docs/before-after.png)
+
+| | Before (manual) | After (this tool) |
+|---|---|---|
+| **Time per sync** | ~30 min | ~30 sec |
+| **Steps** | 7 manual | 1 double-click |
+| **CLI invocations** | 5 (one per package) | 0 (just the EXE) |
+| **Modules to install** | `d365fo.tools` + `nuget.exe` | None |
+| **Pre-check for duplicates** | None — fails after a 400 MB upload | Reads feed first, skips what exists |
+| **Parallel pushes** | No | Up to 3 |
+| **PAT storage** | Often pasted into shell history | SecureString prompt, never written to disk |
+| **Self-update** | Manual | Silent check on startup |
+
+---
+
 > **📌 Note on LCS / PPAC**
 > As of April 2026, D365 F&O NuGet packages are still hosted on **LCS Shared Asset Library**.
 > Microsoft is migrating LCS capabilities to **PPAC (Power Platform Admin Center)**. When that migration completes, this tool will be updated to point at the new location.
@@ -164,7 +183,7 @@ These are the standard D365 F&O build references published to LCS Shared Asset L
 |---|---|
 | `Cannot reach feed` | Check the feed URL (must end in `/nuget/v3/index.json`) and that your PAT is valid + has Packaging scope. |
 | `401 Unauthorized` | PAT expired or wrong scope. Generate a new one with **Packaging (Read & Write)**. |
-| `409 Conflict` on push | The exact version is already in the feed. NuGet doesn't allow overwriting — bump the version in LCS first. |
+| `Conflict` / push rejected | The exact version is already in the feed. Azure Artifacts won't overwrite — bump the version in LCS first. |
 | `nuget.exe` download fails behind a proxy | Set `$env:HTTPS_PROXY` before running, or manually drop `nuget.exe` into `%LOCALAPPDATA%\d365fo-nuget-push-tool\`. |
 | LCS asset library page needs login | Browser-based — sign in with your LCS account. |
 
