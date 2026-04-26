@@ -1,4 +1,4 @@
-# ─────────────────────────────────────────────────────────────────────────────
+﻿# ─────────────────────────────────────────────────────────────────────────────
 # Copyright (c) 2026 Vinod Kumar K J. Released under the MIT License.
 # Contact: github.com/vjanardhana12
 # ─────────────────────────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ function Write-CompareTable {
 function Write-Spinner {
     param([scriptblock]$Action,[string]$Message)
     if (-not $Host.UI.RawUI -or $NonInteractive) { return & $Action }
-    $frames = '|','/','-','\'
+    $frames = @('|','/','-',[string][char]92)
     $job = Start-Job -ScriptBlock $Action
     $i = 0
     while ($job.State -eq 'Running') {
