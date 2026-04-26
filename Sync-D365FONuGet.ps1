@@ -652,6 +652,56 @@ try {
     $queue = New-Object System.Collections.Generic.Queue[object]
     foreach ($p in $toPush) { $queue.Enqueue($p) }
 
+    if ($NonInteractive) {
+        # ---- Non-interactive simple scheduler: one line per package, no spinner ----
+        $running = @{}  # slot index -> @{ Job; Pkg; Stopwatch }
+        function Start-Next-NI {
+            param($SlotIdx)
+            if ($queue.Count -eq 0) { return $false }
+            $pkg = $queue.Dequeue()
+            $sizeMB = [math]::Round((Get-Item $pkg.Path).Length / 1MB, 1)
+            Write-Host ("   [..]   $($pkg.Name) ($sizeMB MB)  pushing...") -ForegroundColor DarkGray
+            $job = Start-Job -ScriptBlock {
+                param($nuget,$path,$src,$cfg)
+                $o = & $nuget push $path -Source $src -ApiKey az -ConfigFile $cfg -Timeout 1800 -NonInteractive 2>&1 | Out-String
+                [pscustomobject]@{ Output = $o; ExitCode = $LASTEXITCODE }
+            } -ArgumentList $nuget, $pkg.Path, $FeedName, $tempConfig
+            $running[$SlotIdx] = @{ Job = $job; Pkg = $pkg; Stopwatch = [Diagnostics.Stopwatch]::StartNew() }
+            return $true
+        }
+        # Prime
+        for ($s = 0; $s -lt $effectiveParallel; $s++) { [void](Start-Next-NI -SlotIdx $s) }
+        # Drive
+        while ($running.Count -gt 0) {
+            $doneKeys = @()
+            foreach ($k in @($running.Keys)) {
+                $r = $running[$k]
+                if ($r.Job.State -ne 'Running') {
+                    $r.Stopwatch.Stop()
+                    $result = Receive-Job $r.Job -ErrorAction SilentlyContinue
+                    Remove-Job $r.Job -Force
+                    $elapsed = '{0:mm\:ss}' -f $r.Stopwatch.Elapsed
+                    $ok = ($result -and $result.ExitCode -eq 0)
+                    if ($ok) {
+                        $succeeded += $r.Pkg
+                        Write-Host ("   [OK]   $($r.Pkg.Name) pushed in $elapsed") -ForegroundColor Green
+                    } else {
+                        $failed += $r.Pkg
+                        Write-Host ("   [FAIL] $($r.Pkg.Name) after $elapsed") -ForegroundColor Red
+                        if ($result -and $result.Output) {
+                            $errLine = ($result.Output -split "`r?`n" | Where-Object { $_ -match 'Conflict|409|error|Error|fail' } | Select-Object -First 1)
+                            if (-not $errLine) { $errLine = ($result.Output.Trim() -split "`r?`n")[-1] }
+                            if ($errLine) { Write-Host ("          " + $errLine.Trim()) -ForegroundColor DarkRed }
+                        }
+                    }
+                    $doneKeys += $k
+                }
+            }
+            foreach ($k in $doneKeys) { $running.Remove($k); [void](Start-Next-NI -SlotIdx $k) }
+            if ($running.Count -gt 0) { Start-Sleep -Milliseconds 500 }
+        }
+    } else {
+
     # Slot table — one entry per parallel slot
     $slots = @()
     for ($s = 0; $s -lt $effectiveParallel; $s++) {
@@ -746,6 +796,7 @@ try {
     # Move cursor below slot block, clear lines
     try { $Host.UI.RawUI.CursorPosition = [Management.Automation.Host.Coordinates]::new(0, $baseRow + $slots.Count) } catch { }
     Write-Host ''
+    } # end else (interactive scheduler)
 } finally {
     if (Test-Path $tempConfig) { Remove-Item $tempConfig -Force }
     $Pat = $null
