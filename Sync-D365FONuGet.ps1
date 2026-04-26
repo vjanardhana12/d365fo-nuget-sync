@@ -672,6 +672,8 @@ try {
         # Prime
         for ($s = 0; $s -lt $effectiveParallel; $s++) { [void](Start-Next-NI -SlotIdx $s) }
         # Drive
+        $heartbeatSec = 15
+        $nextHeartbeat = (Get-Date).AddSeconds($heartbeatSec)
         while ($running.Count -gt 0) {
             $doneKeys = @()
             foreach ($k in @($running.Keys)) {
@@ -698,6 +700,17 @@ try {
                 }
             }
             foreach ($k in $doneKeys) { $running.Remove($k); [void](Start-Next-NI -SlotIdx $k) }
+            # Heartbeat: every N seconds, print elapsed for each in-flight upload
+            if ($running.Count -gt 0 -and (Get-Date) -ge $nextHeartbeat) {
+                foreach ($k in @($running.Keys)) {
+                    $r = $running[$k]
+                    if ($r.Job.State -eq 'Running') {
+                        $el = '{0:mm\:ss}' -f $r.Stopwatch.Elapsed
+                        Write-Host ("   [..]   $($r.Pkg.Name)  still pushing  ($el elapsed)") -ForegroundColor DarkGray
+                    }
+                }
+                $nextHeartbeat = (Get-Date).AddSeconds($heartbeatSec)
+            }
             if ($running.Count -gt 0) { Start-Sleep -Milliseconds 500 }
         }
     } else {
