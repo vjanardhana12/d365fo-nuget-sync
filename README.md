@@ -1,4 +1,4 @@
-# D365 F&O NuGet Sync Tool
+# D365 F&O NuGet Sync
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20(recommended)%20%7C%207%2B-blue)](https://learn.microsoft.com/powershell/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

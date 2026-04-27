@@ -136,7 +136,7 @@ function Write-Banner {
     $line = ('=' * $script:UiWidth)
     Write-Host ''
     Write-Host $line -ForegroundColor DarkCyan
-    Write-Host '   D365 F&O NuGet Sync Tool' -ForegroundColor Cyan
+    Write-Host '   D365 F&O NuGet Sync' -ForegroundColor Cyan
     Write-Host '   One-click sync from LCS to Azure DevOps Artifacts feed' -ForegroundColor DarkGray
     Write-Host ('   Vinod Kumar K J  ' + [char]0x00B7 + '  D365 F&O ALM & DevOps') -ForegroundColor DarkGray
     Write-Host $line -ForegroundColor DarkCyan
