@@ -102,12 +102,34 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.1.2'
+$script:CurrentVersion = '1.1.3'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
+# ALWAYS pause the window before exit when running interactively as a compiled EXE.
+# This fires on normal exit, throw, exit N, or any unhandled error — guaranteeing
+# the user can read messages instead of the window vanishing in a flash.
+$script:PausedOnExit = $false
+function Invoke-PauseBeforeExit {
+    if ($script:PausedOnExit) { return }
+    $script:PausedOnExit = $true
+    if ($NonInteractive) { return }
+    if (-not [Environment]::UserInteractive) { return }
+    try {
+        Write-Host ''
+        Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    } catch {
+        try { [void][Console]::ReadKey($true) } catch { Start-Sleep -Seconds 30 }
+    }
+}
+try {
+    Register-EngineEvent -SourceIdentifier PowerShell.Exiting -SupportEvent -Action {
+        Invoke-PauseBeforeExit
+    } | Out-Null
+} catch { }
+
 # Keep the console window open on unhandled errors when running as a compiled EXE.
-# Without this, a terminating exception (e.g. bad PAT, no network) causes the
-# window to close instantly and the user never sees the error message.
+# Prints the error message before the PowerShell.Exiting handler kicks in.
 trap {
     try {
         Write-Host ''
@@ -116,13 +138,7 @@ trap {
             Write-Host ('          ' + $_.InvocationInfo.PositionMessage.Trim()) -ForegroundColor DarkRed
         }
     } catch { }
-    if (-not $NonInteractive -and [Environment]::UserInteractive) {
-        try {
-            Write-Host ''
-            Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-        } catch { }
-    }
+    Invoke-PauseBeforeExit
     exit 1
 }
 
@@ -512,13 +528,7 @@ try {
     Write-Host ''
     Write-Host ('   Feed URL: ' + $FeedUrl) -ForegroundColor DarkGray
     Write-Host ('   Email   : ' + $Email)   -ForegroundColor DarkGray
-    if (-not $NonInteractive -and [Environment]::UserInteractive) {
-        try {
-            Write-Host ''
-            Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-        } catch { }
-    }
+    Invoke-PauseBeforeExit
     exit 1
 }
 $sw.Stop()
@@ -869,14 +879,5 @@ try {
 
 Write-Summary -Pushed $succeeded.Count -Skipped $skipCount -Failed $failed.Count -FeedUrl $FeedUrl
 
-# Pause before exit when running interactively (especially as compiled EXE which closes the window otherwise)
-if (-not $NonInteractive -and [Environment]::UserInteractive) {
-    try {
-        Write-Host ''
-        Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    } catch {
-        # Host doesn't support ReadKey (e.g. piped/redirected) - skip pause
-    }
-}
-if ($failed.Count -gt 0) { exit 1 }
+if ($failed.Count -gt 0) { Invoke-PauseBeforeExit; exit 1 }
+Invoke-PauseBeforeExit
