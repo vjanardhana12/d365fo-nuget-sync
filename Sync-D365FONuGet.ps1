@@ -102,7 +102,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.1.1'
+$script:CurrentVersion = '1.1.2'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # Keep the console window open on unhandled errors when running as a compiled EXE.
@@ -496,7 +496,31 @@ Write-OK 'Configuration ready.'
 Write-Step 'Inspecting ADO feed'
 Write-Host ("   Querying $FeedName ...") -ForegroundColor DarkGray -NoNewline
 $sw = [Diagnostics.Stopwatch]::StartNew()
-$feedVersions = Get-FeedPackageVersions -FeedUrl $FeedUrl -Email $Email -Pat $Pat -PackageIds $script:KnownPackages
+try {
+    $feedVersions = Get-FeedPackageVersions -FeedUrl $FeedUrl -Email $Email -Pat $Pat -PackageIds $script:KnownPackages
+} catch {
+    Write-Host ("`r" + (' ' * 60) + "`r") -NoNewline
+    Write-Host ''
+    Write-Host '   [ERR]  Cannot read ADO feed.' -ForegroundColor Red
+    Write-Host ('          ' + $_.Exception.Message) -ForegroundColor DarkRed
+    Write-Host ''
+    Write-Host '   Common causes:' -ForegroundColor Yellow
+    Write-Host '     - PAT scope must be Packaging (Read & Write) (not Read-only)' -ForegroundColor DarkGray
+    Write-Host '     - PAT expired or generated for a different ADO organization' -ForegroundColor DarkGray
+    Write-Host '     - Saved email does not match the PAT owner' -ForegroundColor DarkGray
+    Write-Host '     - Corporate proxy / firewall blocking pkgs.dev.azure.com' -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host ('   Feed URL: ' + $FeedUrl) -ForegroundColor DarkGray
+    Write-Host ('   Email   : ' + $Email)   -ForegroundColor DarkGray
+    if (-not $NonInteractive -and [Environment]::UserInteractive) {
+        try {
+            Write-Host ''
+            Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        } catch { }
+    }
+    exit 1
+}
 $sw.Stop()
 Write-Host ("`r" + (' ' * 60) + "`r") -NoNewline
 $present = ($feedVersions.Values | Where-Object { $_ }).Count
