@@ -102,7 +102,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.0.1'
+$script:CurrentVersion = '1.1.0'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # Where we look for .nupkg files. Defaults to script folder. -PackageFolder overrides.
@@ -161,7 +161,7 @@ function Test-ForUpdate {
             if (-not $NonInteractive -and [Environment]::UserInteractive) {
                 $response = Read-Host -Prompt "   Download and update now? (Y/n)"
                 if ($response -ne 'n' -and $response -ne 'N') {
-                    Invoke-UpdateSelf -LatestVersion $latest -ReleaseUrl $resp.html_url
+                    Invoke-UpdateSelf -LatestVersion $latest -ReleaseUrl $resp.html_url -Assets $resp.assets
                 }
             }
         }
@@ -172,7 +172,7 @@ function Test-ForUpdate {
 
 function Invoke-UpdateSelf {
     # Download latest EXE from GitHub releases and replace current one
-    param([string]$LatestVersion, [string]$ReleaseUrl)
+    param([string]$LatestVersion, [string]$ReleaseUrl, [object[]]$Assets)
     
     try {
         # Only works when running as compiled EXE (not as script)
@@ -186,20 +186,40 @@ function Invoke-UpdateSelf {
             return
         }
         
-        # Construct download URL for the EXE from GitHub releases
-        # Pattern: https://github.com/owner/repo/releases/download/vX.Y.Z/Sync-D365FONuGet.exe
         $exeName = [System.IO.Path]::GetFileName($exePath)
-        $downloadUrl = "https://github.com/$($script:UpdateRepo)/releases/download/v$LatestVersion/$exeName"
+        
+        # Prefer the EXE asset's actual download URL from the release metadata.
+        # Falls back to the conventional path if assets weren't passed in.
+        $downloadUrl = $null
+        if ($Assets) {
+            $exeAsset = $Assets | Where-Object { $_.name -ieq $exeName } | Select-Object -First 1
+            if ($exeAsset) { $downloadUrl = $exeAsset.browser_download_url }
+        }
+        if (-not $downloadUrl) {
+            # No EXE asset on this release - can't auto-update. Tell the user and continue.
+            Write-Host ''
+            Write-Warn2 "Release v$LatestVersion does not include $exeName as an asset."
+            Write-Info  "Download manually from: $ReleaseUrl"
+            Write-Info  'Continuing with the current version...'
+            return
+        }
         
         Write-Host ''
         Write-Info "Downloading v$LatestVersion from GitHub..."
         
         # Download to temp file first
         $tempExe = Join-Path $env:TEMP "Sync-D365FONuGet-$LatestVersion.exe"
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempExe -UseBasicParsing -ErrorAction Stop
+        try {
+            $oldProgress = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $tempExe -UseBasicParsing -ErrorAction Stop
+        } finally {
+            $ProgressPreference = $oldProgress
+        }
         
-        if (-not (Test-Path $tempExe)) {
-            Write-Err 'Download failed'
+        if (-not (Test-Path $tempExe) -or (Get-Item $tempExe).Length -lt 1024) {
+            Write-Err 'Download failed or file is empty'
+            try { Remove-Item $tempExe -Force -ErrorAction SilentlyContinue } catch { }
             return
         }
         
