@@ -102,8 +102,29 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.1.0'
+$script:CurrentVersion = '1.1.1'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
+
+# Keep the console window open on unhandled errors when running as a compiled EXE.
+# Without this, a terminating exception (e.g. bad PAT, no network) causes the
+# window to close instantly and the user never sees the error message.
+trap {
+    try {
+        Write-Host ''
+        Write-Host ('   [ERR]  ' + $_.Exception.Message) -ForegroundColor Red
+        if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
+            Write-Host ('          ' + $_.InvocationInfo.PositionMessage.Trim()) -ForegroundColor DarkRed
+        }
+    } catch { }
+    if (-not $NonInteractive -and [Environment]::UserInteractive) {
+        try {
+            Write-Host ''
+            Write-Host '   Press any key to exit . . .' -ForegroundColor DarkGray
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        } catch { }
+    }
+    exit 1
+}
 
 # Where we look for .nupkg files. Defaults to script folder. -PackageFolder overrides.
 if ($PackageFolder) {
