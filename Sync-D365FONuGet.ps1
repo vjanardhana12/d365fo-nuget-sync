@@ -392,6 +392,31 @@ function Read-Required {
     return $val
 }
 
+function ConvertTo-FeedV3Url {
+    # Turn any Azure DevOps Artifacts feed URL into the canonical NuGet v3 index URL.
+    # Accepts the browser address-bar URL, the legacy *.visualstudio.com URL, or a
+    # bare pkgs URL, and returns:
+    #   https://pkgs.dev.azure.com/{org}[/{project}]/_packaging/{feed}/nuget/v3/index.json
+    param([string]$Url)
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $Url }
+
+    $u = $Url.Trim().Trim('"').Trim("'")
+    $u = ($u -split '[?#]', 2)[0].TrimEnd('/')
+
+    # Already the v3 index URL - nothing to do.
+    if ($u -match '(?i)^https?://pkgs\.dev\.azure\.com/.+/_packaging/[^/]+/nuget/v3/index\.json$') { return $u }
+
+    $org = $null; $project = $null; $feed = $null
+    if     ($u -match '(?i)^https?://dev\.azure\.com/([^/]+)(?:/([^/]+))?/_artifacts/feed/([^/]+)')        { $org = $Matches[1]; $project = $Matches[2]; $feed = $Matches[3] }
+    elseif ($u -match '(?i)^https?://([^.]+)\.visualstudio\.com/(?:([^/]+)/)?_artifacts/feed/([^/]+)')      { $org = $Matches[1]; $project = $Matches[2]; $feed = $Matches[3] }
+    elseif ($u -match '(?i)^https?://pkgs\.dev\.azure\.com/([^/]+)(?:/([^/]+))?/_packaging/([^/]+)')       { $org = $Matches[1]; $project = $Matches[2]; $feed = $Matches[3] }
+    else { return $u }  # unknown shape - hand back unchanged, validation will catch it
+
+    $prefix = "https://pkgs.dev.azure.com/$org"
+    if ($project) { $prefix = "$prefix/$project" }
+    return "$prefix/_packaging/$feed/nuget/v3/index.json"
+}
+
 function Get-NuGetExe {
     if (Test-Path $script:NuGetExe) { return $script:NuGetExe }
     Write-Info 'Downloading nuget.exe (one-time, ~6 MB)...'
@@ -472,6 +497,9 @@ if (-not $FeedUrl)  { $FeedUrl  = $saved.FeedSource }
 if (-not $FeedName) { $FeedName = $saved.FeedName }
 if (-not $Email)    { $Email    = $saved.Email }
 
+# Accept a browser feed URL (or any other shape) and normalize to the v3 index URL.
+if ($FeedUrl) { $FeedUrl = ConvertTo-FeedV3Url $FeedUrl }
+
 if ($saved -and $FeedUrl -eq $saved.FeedSource -and -not $NonInteractive) {
     Write-Info 'Saved configuration found:'
     Write-Field 'Feed URL'  $saved.FeedSource
@@ -483,9 +511,21 @@ if ($saved -and $FeedUrl -eq $saved.FeedSource -and -not $NonInteractive) {
 }
 
 if (-not $FeedUrl) {
+    if ($NonInteractive) { throw 'FeedUrl required: pass -FeedUrl (NonInteractive mode).' }
     Write-Info ''
-    Write-Info 'FORMAT : https://pkgs.dev.azure.com/{ORG}/_packaging/{FEED}/nuget/v3/index.json'
-    $FeedUrl = Read-Required -Prompt 'ADO Feed URL' -Pattern 'pkgs\.dev\.azure\.com' -ErrorText 'Must be an ADO Artifacts v3 feed URL.'
+    Write-Info 'Paste your feed URL - the browser address bar is fine:'
+    Write-Info '  https://dev.azure.com/{ORG}/{PROJECT}/_artifacts/feed/{FEED}'
+    Write-Info 'or the NuGet v3 URL. It is converted automatically.'
+    do {
+        $raw     = Read-Host -Prompt '  ADO Feed URL'
+        $FeedUrl = ConvertTo-FeedV3Url $raw
+        $ok      = $FeedUrl -match '(?i)pkgs\.dev\.azure\.com/.+/_packaging/[^/]+/nuget/v3/index\.json'
+        if (-not $ok) {
+            Write-Err 'Not a recognizable ADO Artifacts feed URL. Paste the feed page URL from your browser, or the .../nuget/v3/index.json URL.'
+            $FeedUrl = ''
+        }
+    } while (-not $FeedUrl)
+    if ($raw.Trim().TrimEnd('/') -ne $FeedUrl) { Write-Info "Converted to: $FeedUrl" }
 }
 # Auto-derive FeedName from URL: .../_packaging/{FeedName}/nuget/v3/index.json
 if (-not $FeedName -and $FeedUrl -match '_packaging/([^/]+)/nuget/v3') {
