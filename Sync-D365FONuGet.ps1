@@ -50,7 +50,7 @@
 
 .NOTES
     Author       : Vinod Kumar K J
-    Version      : 1.0.0
+    Version      : 1.0.1
     Works on     : Windows PowerShell 5.1 and PowerShell 7+
     Auto-update  : Checks GitHub on startup; prompts user if new version available
 #>
@@ -102,7 +102,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.0.0'
+$script:CurrentVersion = '1.0.1'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # ALWAYS pause the window before exit when running interactively as a compiled EXE.

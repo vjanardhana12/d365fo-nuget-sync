@@ -94,4 +94,10 @@ The standard D365 F&O build references from the LCS Shared Asset Library:
 
 ---
 
+## Version history
+
+See **[CHANGELOG.md](CHANGELOG.md)** — or the [Releases page](https://github.com/vjanardhana12/d365fo-nuget-sync/releases) — for what changed in each version.
+
+---
+
 MIT licensed — free for personal and commercial use. Created by **Vinod Kumar K J**.
