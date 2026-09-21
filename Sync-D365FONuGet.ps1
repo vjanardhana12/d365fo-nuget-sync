@@ -50,7 +50,7 @@
 
 .NOTES
     Author       : Vinod Kumar K J
-    Version      : 1.0.1
+    Version      : 1.0.0
     Works on     : Windows PowerShell 5.1 and PowerShell 7+
     Auto-update  : Checks GitHub on startup; prompts user if new version available
 #>
@@ -102,7 +102,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.1.3'
+$script:CurrentVersion = '1.0.0'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # ALWAYS pause the window before exit when running interactively as a compiled EXE.
@@ -181,6 +181,16 @@ function Write-Banner {
 
 function Test-ForUpdate {
     # Interactive self-update check. Prompts user if update available. Never blocks if offline.
+
+    # Remove any leftover <exe>.old from a previous successful self-update.
+    try {
+        $selfExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        if ($selfExe -and $selfExe.ToLower().EndsWith('.exe')) {
+            $leftOld = "$selfExe.old"
+            if (Test-Path $leftOld) { Remove-Item $leftOld -Force -ErrorAction SilentlyContinue }
+        }
+    } catch { }
+
     try {
         $api = "https://api.github.com/repos/$($script:UpdateRepo)/releases/latest"
         $resp = Invoke-RestMethod -Uri $api -TimeoutSec 4 -Headers @{ 'User-Agent' = 'd365fo-nuget-sync' } -ErrorAction Stop
@@ -261,29 +271,36 @@ function Invoke-UpdateSelf {
         }
         
         Write-OK "Downloaded: $tempExe"
-        
-        # Backup current EXE
-        $backupExe = "$exePath.backup"
-        if (Test-Path $exePath) {
-            Copy-Item -Path $exePath -Destination $backupExe -Force
-            Write-Info "Backed up current version to: $backupExe"
+
+        # A running EXE is locked by Windows and CANNOT be overwritten in place
+        # (that was the "update failed" error). It CAN be renamed while running,
+        # so: move the live EXE aside to <name>.old, drop the new one in its
+        # place, relaunch, then let the next startup delete the leftover .old.
+        $oldExe = "$exePath.old"
+        try {
+            if (Test-Path $oldExe) { Remove-Item $oldExe -Force -ErrorAction SilentlyContinue }
+            Rename-Item -Path $exePath -NewName ([System.IO.Path]::GetFileName($oldExe)) -Force -ErrorAction Stop
+            Move-Item   -Path $tempExe -Destination $exePath -Force -ErrorAction Stop
+        } catch {
+            # Roll back so the tool still works if the swap failed
+            if ((Test-Path $oldExe) -and -not (Test-Path $exePath)) {
+                Rename-Item -Path $oldExe -NewName ([System.IO.Path]::GetFileName($exePath)) -Force -ErrorAction SilentlyContinue
+            }
+            Write-Err  "Update failed while replacing the running program: $($_.Exception.Message)"
+            Write-Info "Download it manually from: $ReleaseUrl"
+            try { Remove-Item $tempExe -Force -ErrorAction SilentlyContinue } catch { }
+            return
         }
-        
-        # Replace with new EXE
-        Copy-Item -Path $tempExe -Destination $exePath -Force
         Write-OK "Updated to v$LatestVersion"
-        
-        # Clean up temp file
-        try { Remove-Item $tempExe -Force } catch { }
-        
+
         Write-Host ''
-        Write-Info 'Restarting with new version...'
-        Start-Sleep -Milliseconds 800
-        
-        # Re-invoke with the new EXE
-        & $exePath @PSBoundParameters
+        Write-Info 'Restarting with the new version...'
+        Start-Sleep -Milliseconds 500
+
+        # Launch the freshly installed EXE in a new process, then exit this one.
+        try { Start-Process -FilePath $exePath } catch { Write-Info "Please re-run: $exePath" }
         exit 0
-        
+
     } catch {
         Write-Err "Update failed: $($_.Exception.Message)"
     }

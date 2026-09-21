@@ -10,4 +10,5 @@ NuGet.Push.Config
 
 # Build artifacts (released via GitHub Releases, not in repo)
 *.exe
+*.zip
 test.png
