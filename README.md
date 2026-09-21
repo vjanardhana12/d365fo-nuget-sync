@@ -100,4 +100,18 @@ See **[CHANGELOG.md](CHANGELOG.md)** — or the [Releases page](https://github.c
 
 ---
 
+## Releasing (maintainer only)
+
+> `New-Release.ps1` is a helper **for the repo owner** — end users don't need it; just download the zip above.
+
+It's **run manually** (no CI/automation). It bumps the version in the script, rebuilds the `.exe`, packages the `.zip`, and creates the GitHub release:
+
+```powershell
+.\New-Release.ps1 -Version 1.0.2 -Push
+```
+
+Requires the `ps2exe` module and the GitHub CLI (`gh`), signed in as the repo owner.
+
+---
+
 MIT licensed — free for personal and commercial use. Created by **Vinod Kumar K J**.
