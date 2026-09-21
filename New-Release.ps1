@@ -74,13 +74,14 @@ if ($Push) { git push origin main }
 
 # --- 5. Create the GitHub release --------------------------------------------
 Write-Host "Creating release $tag ..." -ForegroundColor Cyan
-$notes = @(
-    "## D365 F&O NuGet Sync $tag",
-    "",
-    "Download **Sync-D365FONuGet.zip**, right-click -> Properties -> Unblock, extract, then double-click **Sync-D365FONuGet.bat** (works even where .exe files are blocked). The exe and ps1 are in the zip too.",
-    "",
-    "Existing users on a previous version: this updates in place on next launch."
-) -join "`n"
+# Use the matching CHANGELOG.md section as the release notes (keeps them in sync).
+$notes = "Release $tag"
+$clPath = Join-Path $PSScriptRoot 'CHANGELOG.md'
+if (Test-Path $clPath) {
+    $cl = Get-Content $clPath -Raw
+    $m = [regex]::Match($cl, "(?ms)^##\s*\[?$([regex]::Escape($Version))\]?.*?(?=^\s*##\s|\z)")
+    if ($m.Success) { $notes = $m.Value.Trim() }
+}
 gh release create $tag --target main --title "$tag" --notes $notes $zip $exe $ps1
 
 Write-Host "Done: https://github.com/vjanardhana12/d365fo-nuget-sync/releases/tag/$tag" -ForegroundColor Green

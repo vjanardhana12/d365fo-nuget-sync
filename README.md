@@ -48,7 +48,7 @@ That's it — no install, no PowerShell setup. The `.bat` just starts the tool f
 | **Email** | your Azure DevOps login |
 | **PAT** | Personal Access Token with **Packaging (Read & Write)** scope — [create one](https://dev.azure.com/_usersSettings/tokens) |
 
-The first three are remembered for next time (saved per-user). **Your PAT is never saved** — you type it each run.
+The first three are remembered for next time (saved per-user). **Your PAT isn't stored between runs** — you type it each run. (During upload it's written to a temporary local file that's deleted immediately afterward.)
 
 ---
 
