@@ -80,7 +80,10 @@ $clPath = Join-Path $PSScriptRoot 'CHANGELOG.md'
 if (Test-Path $clPath) {
     $cl = Get-Content $clPath -Raw
     $m = [regex]::Match($cl, "(?ms)^##\s*\[?$([regex]::Escape($Version))\]?.*?(?=^\s*##\s|\z)")
-    if ($m.Success) { $notes = $m.Value.Trim() }
+    if ($m.Success) {
+        # Drop the leading "## [x.y.z] - date" line (GitHub already shows version + date).
+        $notes = (($m.Value.Trim() -split "`r?`n", 2)[1]).Trim()
+    }
 }
 gh release create $tag --target main --title "$tag" --notes $notes $zip $exe $ps1
 
