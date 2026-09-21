@@ -47,7 +47,7 @@ That is it - no install, no PowerShell setup. The `.bat` just starts the tool fo
 | **ADO Feed URL** | `https://pkgs.dev.azure.com/myorg/_packaging/MyFeed/nuget/v3/index.json` (or just paste the feed page URL from your browser - it converts automatically) |
 | **Feed Name** | any short label, e.g. `MyFeed` |
 | **Email** | your Azure DevOps login |
-| **PAT** | Personal Access Token with **Packaging (Read & Write)** scope - [create one](https://dev.azure.com/_usersSettings/tokens) |
+| **PAT** | Personal Access Token with **Packaging (Read & Write)** scope. In Azure DevOps: **User settings (top-right) → Personal access tokens → New Token**, then under **Scopes** choose **Packaging → Read & write**. |
 
 The first three are remembered for next time (saved per-user). **Your PAT is not stored between runs** - you type it each run. (During upload it is written to a temporary local file that is deleted immediately afterward.)
 
