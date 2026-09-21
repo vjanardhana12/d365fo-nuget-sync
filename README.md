@@ -19,9 +19,23 @@ That's it — no install, no PowerShell setup. The `.bat` just starts the tool f
 
 > **Why the `.bat`?** Many workplaces block downloading or running `.exe` files. The `.bat` and `.ps1` inside the zip are plain text, so they get through — and the `.bat` launches everything with one double-click.
 >
-> **Other ways to run** (same zip):
-> - Prefer an app? Double-click **`Sync-D365FONuGet.exe`**.
-> - Prefer the raw script? Run **`Sync-D365FONuGet.ps1`** in PowerShell.
+> **Other ways to run** (same zip): double-click **`Sync-D365FONuGet.exe`**, or run **`Sync-D365FONuGet.ps1`** in PowerShell.
+
+---
+
+## See it in action
+
+**1. It remembers your feed settings and checks your feed:**
+
+![Banner and saved configuration](docs/screenshot-1-config.png)
+
+**2. It compares your feed with your local packages and shows exactly what it will do — then asks before pushing:**
+
+![Compare table: SKIP / PUSH / MISSING](docs/screenshot-2-compare.png)
+
+**3. Done — only the packages that were missing or newer get uploaded:**
+
+![Success summary](docs/screenshot-3-success.png)
 
 ---
 
@@ -38,21 +52,14 @@ The first three are remembered for next time (saved per-user). **Your PAT is nev
 
 ---
 
-## What it does
+## Example: upgrade your feed to a new platform version
 
-1. Reads your ADO feed and lists what it already has.
-2. Reads any `.nupkg` files sitting next to the tool.
-3. Shows a simple table — feed vs local — and pushes only what's missing or newer.
+1. In **LCS → Shared Asset Library**, download the D365 F&O NuGet packages for the version you want. You'll get **`.nupkg`** files (keep them as `.nupkg` — don't rename or unzip them).
+2. Put those `.nupkg` files in the **same folder** as the tool (or point the tool to your Downloads folder when it asks).
+3. Double-click **`Sync-D365FONuGet.bat`**.
+4. It shows the compare table (like the screenshot above), asks **“Continue with push? (Y/n)”**, and uploads only what's missing or newer.
 
-```
-   Package                         InFeed         Local           Action
-   ──────────────────────────────  ─────────────  ──────────────  ──────────────
-   Platform.DevALM.BuildXpp        7.0.7858.27    7.0.7858.27     SKIP (same)
-   Application1.DevALM.BuildXpp    10.0.2345.218  10.0.2527.42    PUSH (newer)
-   ApplicationSuite.DevALM.BXpp    10.0.2345.218  10.0.2527.42    PUSH (newer)
-```
-
-If any packages are missing, it opens the LCS Shared Asset Library so you can download them, then picks them up automatically.
+That's the whole loop — re-run it whenever a new platform version drops.
 
 ---
 
