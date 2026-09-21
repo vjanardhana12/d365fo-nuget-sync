@@ -102,6 +102,7 @@ The standard D365 F&O build references from the LCS Shared Asset Library:
 
 - **Runs on** Windows PowerShell 5.1 or PowerShell 7+.
 - **Auto-update:** the `.exe` checks GitHub on startup and offers to upgrade itself when a newer release exists.
+- **Run log:** each run writes `Sync-D365FONuGet.log` next to the tool, with per-package results and full error detail for troubleshooting.
 - **LCS is being retired:** these packages live on the **LCS Shared Asset Library** today; Microsoft is moving to the **Power Platform Admin Center (PPAC)**. A future v2.0.0 will support PPAC.
 
 ## What's new

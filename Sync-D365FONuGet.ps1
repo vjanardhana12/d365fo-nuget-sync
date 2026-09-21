@@ -88,6 +88,24 @@ if ($PSScriptRoot) {
 } else {
     $script:ScriptDir = [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
 }
+
+# Run log - written next to the tool so you can review details later.
+$script:LogFile = Join-Path $script:ScriptDir 'Sync-D365FONuGet.log'
+function Write-Log {
+    param([string]$Message)
+    try { Add-Content -LiteralPath $script:LogFile -Value ("{0:yyyy-MM-dd HH:mm:ss}  {1}" -f (Get-Date), $Message) -Encoding UTF8 -ErrorAction SilentlyContinue } catch { }
+}
+function Get-FriendlyPushError {
+    # Turn a raw nuget push failure into one plain-English line.
+    param([string]$Output)
+    if ([string]::IsNullOrWhiteSpace($Output)) { return 'Upload failed. See the log for details.' }
+    if ($Output -match 'has been deleted\. It cannot be restored or pushed') { return "This version was deleted from the feed earlier and can't be re-pushed. Restore it from the feed's Recycle Bin in Azure DevOps." }
+    if ($Output -match '(?i)already exists|409|conflict') { return 'That version is already in the feed. Azure Artifacts will not overwrite an existing version.' }
+    if ($Output -match '(?i)\b401\b|unauthorized')       { return 'Access denied. Check your PAT is valid and has Packaging (Read & Write) scope.' }
+    if ($Output -match '(?i)\b403\b|forbidden')          { return 'Forbidden. Your PAT may lack Packaging (Read & Write) permission on this feed.' }
+    if ($Output -match '(?i)timeout|timed out')          { return 'The upload timed out. Check your connection and try again.' }
+    return 'Upload failed. See the log for full details.'
+}
 $script:AppDataDir  = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-sync'
 if (-not (Test-Path $script:AppDataDir)) { New-Item -ItemType Directory -Path $script:AppDataDir -Force | Out-Null }
 $script:ConfigFile  = Join-Path $script:AppDataDir '.push-config'
@@ -375,7 +393,10 @@ function Write-Summary {
     Write-Field 'Skipped' $Skipped
     Write-Field 'Failed'  $Failed
     if ($FeedUrl) { Write-Field 'Feed' $FeedUrl }
+    Write-Field 'Log' $script:LogFile
     Write-Host $line -ForegroundColor $colour
+    Write-Log "SUMMARY  Pushed=$Pushed  Skipped=$Skipped  Failed=$Failed"
+    Write-Log '========================================'
 }
 
 function Read-Required {
@@ -562,6 +583,8 @@ if (-not $Pat) {
 }
 
 Write-OK 'Configuration ready.'
+Write-Log "==== Run started (v$($script:CurrentVersion)) ===="
+Write-Log "Feed=$FeedName  URL=$FeedUrl  Folder=$script:PkgFolder"
 
 # =============================================================================
 # STEP 1 — Inspect ADO feed
@@ -576,6 +599,7 @@ try {
     Write-Host ''
     Write-Host '   [ERR]  Cannot read ADO feed.' -ForegroundColor Red
     Write-Host ('          ' + $_.Exception.Message) -ForegroundColor DarkRed
+    Write-Log "FEED ERROR: $($_.Exception.Message)"
     Write-Host ''
     Write-Host '   Common causes:' -ForegroundColor Yellow
     Write-Host '     - PAT scope must be Packaging (Read & Write) (not Read-only)' -ForegroundColor DarkGray
@@ -651,6 +675,7 @@ foreach ($id in $script:KnownPackages) {
 
 Write-Host ''
 Write-CompareTable -Rows $rows
+foreach ($r in $rows) { Write-Log ("  {0,-34} feed={1,-14} local={2,-14} {3}" -f $r.Package, $r.InFeed, $r.Local, $r.Action) }
 
 # =============================================================================
 # STEP 4 — Handle missing (open LCS, wait)
@@ -817,14 +842,14 @@ try {
                     if ($ok) {
                         $succeeded += $r.Pkg
                         Write-Host ("   [OK]   $($r.Pkg.Name) pushed in $elapsed") -ForegroundColor Green
+                        Write-Log "PUSHED $($r.Pkg.Name) ($($r.Pkg.Version)) in $elapsed"
                     } else {
                         $failed += $r.Pkg
+                        $out = if ($result) { [string]$result.Output } else { '' }
                         Write-Host ("   [FAIL] $($r.Pkg.Name) after $elapsed") -ForegroundColor Red
-                        if ($result -and $result.Output) {
-                            $errLine = ($result.Output -split "`r?`n" | Where-Object { $_ -match 'Conflict|409|error|Error|fail' } | Select-Object -First 1)
-                            if (-not $errLine) { $errLine = ($result.Output.Trim() -split "`r?`n")[-1] }
-                            if ($errLine) { Write-Host ("          " + $errLine.Trim()) -ForegroundColor DarkRed }
-                        }
+                        Write-Host ("          " + (Get-FriendlyPushError $out)) -ForegroundColor DarkRed
+                        Write-Log "FAILED $($r.Pkg.Name) after $elapsed - $(Get-FriendlyPushError $out)"
+                        Write-Log ("  nuget: " + ($out -replace "`r?`n", ' | '))
                     }
                     $doneKeys += $k
                 }
@@ -908,9 +933,12 @@ try {
                     try { $Host.UI.RawUI.CursorPosition = [Management.Automation.Host.Coordinates]::new(0, $baseRow + $slots.Count) } catch { }
                     if ($finOk) {
                         Write-Host ("   [OK]   $($finPkg.Name) pushed in $elapsed") -ForegroundColor Green
+                        Write-Log "PUSHED $($finPkg.Name) ($($finPkg.Version)) in $elapsed"
                     } else {
                         Write-Host ("   [FAIL] $($finPkg.Name) after $elapsed") -ForegroundColor Red
-                        if ($finOut) { Write-Host ("          " + $finOut) -ForegroundColor DarkRed }
+                        Write-Host ("          " + (Get-FriendlyPushError $finOut)) -ForegroundColor DarkRed
+                        Write-Log "FAILED $($finPkg.Name) after $elapsed - $(Get-FriendlyPushError $finOut)"
+                        Write-Log ("  nuget: " + ($finOut -replace "`r?`n", ' | '))
                     }
                     # Re-reserve the slot lines below by writing blank lines and adjusting baseRow
                     for ($s2 = 0; $s2 -lt $slots.Count; $s2++) { Write-Host '' }

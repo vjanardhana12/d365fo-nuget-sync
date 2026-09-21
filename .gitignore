@@ -12,4 +12,5 @@ NuGet.Push.Config
 *.exe
 *.zip
 *.old
+*.log
 test.png
