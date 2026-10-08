@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Copyright (c) 2026 Vinod Kumar K J. Released under the MIT License.
 # Contact: github.com/vjanardhana12
 # ─────────────────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@
 
 .NOTES
     Author       : Vinod Kumar K J
-    Version      : 1.0.0
+    Version      : 1.0.1
     Works on     : Windows PowerShell 5.1 and PowerShell 7+
     Auto-update  : Checks GitHub on startup; prompts user if new version available
 #>
@@ -120,7 +120,7 @@ $script:NuGetExeDir = Join-Path $env:LOCALAPPDATA 'd365fo-nuget-push-tool'
 $script:NuGetExe    = Join-Path $NuGetExeDir 'nuget.exe'
 
 # Self-update check
-$script:CurrentVersion = '1.0.0'
+$script:CurrentVersion = '1.0.1'
 $script:UpdateRepo     = 'vjanardhana12/d365fo-nuget-sync'
 
 # ALWAYS pause the window before exit when running interactively as a compiled EXE.
@@ -463,6 +463,35 @@ function Get-PackageVersionFromNupkg {
     } finally { $zip.Dispose() }
 }
 
+function Get-FeedServiceIndex {
+    # Fetch the NuGet v3 service index, with an automatic org-scoped fallback.
+    # Azure DevOps feeds come in two shapes:
+    #   org-scoped:     https://pkgs.dev.azure.com/{org}/_packaging/{feed}/nuget/v3/index.json
+    #   project-scoped: https://pkgs.dev.azure.com/{org}/{project}/_packaging/{feed}/nuget/v3/index.json
+    # The browser address bar often carries the {project} segment even for an
+    # org-scoped feed, which then 404s. If the URL as given fails and it has a
+    # project segment, retry once with the project stripped (org-scoped).
+    param([string]$FeedUrl, [hashtable]$Headers)
+
+    $candidates = @($FeedUrl)
+    if ($FeedUrl -match '(?i)^(https?://pkgs\.dev\.azure\.com/[^/]+)/[^/]+/(_packaging/[^/]+/nuget/v3/index\.json)$') {
+        $orgScoped = "$($Matches[1])/$($Matches[2])"
+        if ($orgScoped -ne $FeedUrl) { $candidates += $orgScoped }
+    }
+
+    $tried = @(); $lastErr = $null
+    foreach ($url in $candidates) {
+        try {
+            $svc = Invoke-RestMethod -Uri $url -Headers $Headers -ErrorAction Stop
+            return [pscustomobject]@{ Url = $url; Service = $svc }
+        } catch {
+            $tried += $url
+            $lastErr = $_
+        }
+    }
+    throw "Cannot reach feed. Tried: $($tried -join '  |  '). Check URL/PAT. Inner: $($lastErr.Exception.Message)"
+}
+
 function Get-FeedPackageVersions {
     param([string]$FeedUrl, [string]$Email, [string]$Pat, [string[]]$PackageIds)
 
@@ -470,11 +499,8 @@ function Get-FeedPackageVersions {
     $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${Email}:${Pat}"))
     $headers = @{ Authorization = "Basic $auth"; Accept = 'application/json' }
 
-    try {
-        $svc = Invoke-RestMethod -Uri $FeedUrl -Headers $headers -ErrorAction Stop
-    } catch {
-        throw "Cannot reach feed at $FeedUrl. Check URL/PAT. Inner: $($_.Exception.Message)"
-    }
+    $resolved = Get-FeedServiceIndex -FeedUrl $FeedUrl -Headers $headers
+    $svc      = $resolved.Service
     $flat = $svc.resources | Where-Object { $_.'@type' -like 'PackageBaseAddress/3.0.0*' } | Select-Object -First 1
     if (-not $flat) { throw "Feed does not advertise PackageBaseAddress (flatcontainer). Not a valid v3 NuGet feed." }
     $base = $flat.'@id'.TrimEnd('/')
@@ -495,7 +521,7 @@ function Get-FeedPackageVersions {
             $result[$id] = $null
         }
     }
-    return $result
+    return [pscustomobject]@{ Versions = $result; ResolvedUrl = $resolved.Url }
 }
 
 # =============================================================================
@@ -593,7 +619,8 @@ Write-Step 'Inspecting ADO feed'
 Write-Host ("   Querying $FeedName ...") -ForegroundColor DarkGray -NoNewline
 $sw = [Diagnostics.Stopwatch]::StartNew()
 try {
-    $feedVersions = Get-FeedPackageVersions -FeedUrl $FeedUrl -Email $Email -Pat $Pat -PackageIds $script:KnownPackages
+    $feedResult   = Get-FeedPackageVersions -FeedUrl $FeedUrl -Email $Email -Pat $Pat -PackageIds $script:KnownPackages
+    $feedVersions = $feedResult.Versions
 } catch {
     Write-Host ("`r" + (' ' * 60) + "`r") -NoNewline
     Write-Host ''
@@ -614,6 +641,17 @@ try {
 }
 $sw.Stop()
 Write-Host ("`r" + (' ' * 60) + "`r") -NoNewline
+
+# The feed may have resolved to a different (org-scoped) URL than the one pasted.
+# Adopt it so the push step uses the working URL, and persist the correction.
+if ($feedResult.ResolvedUrl -and $feedResult.ResolvedUrl -ne $FeedUrl) {
+    Write-Info "Feed URL adjusted to org-scoped: $($feedResult.ResolvedUrl)"
+    Write-Log  "Feed URL adjusted: $FeedUrl -> $($feedResult.ResolvedUrl)"
+    $FeedUrl = $feedResult.ResolvedUrl
+    @{ FeedSource = $FeedUrl; FeedName = $FeedName; Email = $Email } |
+        ConvertTo-Json | Out-File $script:ConfigFile -Force -Encoding UTF8
+}
+
 $present = ($feedVersions.Values | Where-Object { $_ }).Count
 Write-OK ("$present of $($script:KnownPackages.Count) D365FO packages already in feed  ({0:0.0}s)" -f $sw.Elapsed.TotalSeconds)
 
